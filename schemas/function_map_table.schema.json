@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aktool.local/schemas/1.0.0/function_map_table.schema.json",
+  "title": "AKTOOL function_map_table",
+  "type": "object",
+  "allOf": [{ "$ref": "common.schema.json" }],
+  "required": ["map_key", "shape", "data_type", "rows", "columns", "storage_order", "formula", "unit", "axes"],
+  "properties": {
+    "category": { "const": "function_map_table" },
+    "map_key": { "type": "string", "pattern": "^[A-Za-z0-9_.]+$" },
+    "shape": { "enum": ["scalar", "curve", "map", "cuboid", "cube"] },
+    "data_type": { "$ref": "common.schema.json#/$defs/data_type" },
+    "rows": { "type": "integer", "minimum": 1 },
+    "columns": { "type": "integer", "minimum": 1 },
+    "extra_dimensions": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+    "storage_order": { "enum": ["row_major", "column_major"] },
+    "formula": { "$ref": "common.schema.json#/$defs/formula" },
+    "unit": { "type": ["string", "null"] },
+    "axes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "kind", "points"],
+        "properties": {
+          "name": { "type": "string" },
+          "kind": { "enum": ["x", "y", "z"] },
+          "points": { "type": "integer", "minimum": 1 },
+          "source": { "enum": ["stored", "fixed", "shared"] },
+          "file_offset": { "type": ["integer", "null"], "minimum": 0 },
+          "ecu_address": { "type": ["integer", "null"], "minimum": 0 },
+          "data_type": { "$ref": "common.schema.json#/$defs/data_type" },
+          "byte_order": { "$ref": "common.schema.json#/$defs/byte_order" },
+          "formula": { "$ref": "common.schema.json#/$defs/formula" },
+          "unit": { "type": ["string", "null"] },
+          "values": { "type": ["array", "null"], "items": { "type": "number" } }
+        },
+        "additionalProperties": false
+      }
+    },
+    "original_raw_bytes": { "$ref": "common.schema.json#/$defs/hex_bytes" },
+    "original_physical_values": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
+    "proposed_physical_values": { "type": ["array", "null"], "items": { "type": "array", "items": { "type": "number" } } },
+    "proposed_bytes": { "oneOf": [{ "$ref": "common.schema.json#/$defs/hex_bytes" }, { "type": "null" }] },
+    "physical_limits": { "$ref": "#/$defs/limits" },
+    "raw_limits": { "$ref": "#/$defs/limits" },
+    "related_functions": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "limits": {
+      "type": ["object", "null"],
+      "properties": { "min": { "type": "number" }, "max": { "type": "number" } },
+      "additionalProperties": false
+    }
+  },
+  "patternProperties": { "^x_": {} },
+  "unevaluatedProperties": false
+}

@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aktool.local/schemas/1.0.0/non_bosch_dtc.schema.json",
+  "title": "AKTOOL non_bosch_dtc",
+  "type": "object",
+  "allOf": [
+    {
+      "$ref": "common.schema.json"
+    }
+  ],
+  "required": [
+    "dtc_code",
+    "ecu_family_profile",
+    "encoding_profile",
+    "record_index",
+    "tables"
+  ],
+  "properties": {
+    "category": {
+      "const": "non_bosch_dtc"
+    },
+    "dtc_code": {
+      "$ref": "bosch_dtc.schema.json#/$defs/dtc_code"
+    },
+    "ecu_family_profile": {
+      "type": "object",
+      "required": [
+        "key",
+        "version"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "encoding_profile": {
+      "type": "string",
+      "minLength": 1
+    },
+    "record_index": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "tables": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "allOf": [
+          {
+            "$ref": "bosch_dtc.schema.json#/$defs/table_entry_base"
+          }
+        ],
+        "type": "object",
+        "required": [
+          "table_type"
+        ],
+        "properties": {
+          "table_type": {
+            "enum": [
+              "code",
+              "status",
+              "enable",
+              "class",
+              "severity",
+              "counter",
+              "other"
+            ]
+          }
+        },
+        "unevaluatedProperties": false
+      }
+    },
+    "disable_strategy": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Documented proposal only, never an instruction."
+    },
+    "relationships": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "proposed_bytes": {
+      "oneOf": [
+        {
+          "$ref": "common.schema.json#/$defs/hex_bytes"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "patternProperties": {
+    "^x_": {}
+  },
+  "unevaluatedProperties": false
+}

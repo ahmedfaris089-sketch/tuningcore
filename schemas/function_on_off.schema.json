@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aktool.local/schemas/1.0.0/function_on_off.schema.json",
+  "title": "AKTOOL function_on_off",
+  "type": "object",
+  "allOf": [
+    {
+      "$ref": "common.schema.json"
+    },
+    {
+      "if": {
+        "properties": {
+          "switch_style": {
+            "const": "bitmask"
+          }
+        },
+        "required": [
+          "switch_style"
+        ]
+      },
+      "then": {
+        "required": [
+          "bit_mask"
+        ]
+      }
+    },
+    {
+      "$comment": "code_patch may be stored but must not reach validated in V1.",
+      "if": {
+        "properties": {
+          "switch_style": {
+            "const": "code_patch"
+          }
+        },
+        "required": [
+          "switch_style"
+        ]
+      },
+      "then": {
+        "properties": {
+          "review_state": {
+            "enum": [
+              "draft",
+              "approved",
+              "deprecated"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "required": [
+    "function_key",
+    "switch_style",
+    "data_type",
+    "data_width_bits",
+    "original_value",
+    "on_value",
+    "off_value",
+    "on_bytes",
+    "off_bytes",
+    "logic_description"
+  ],
+  "properties": {
+    "category": {
+      "const": "function_on_off"
+    },
+    "function_key": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+$"
+    },
+    "switch_style": {
+      "enum": [
+        "single_value",
+        "bitmask",
+        "multi_field",
+        "code_patch"
+      ]
+    },
+    "data_type": {
+      "$ref": "common.schema.json#/$defs/data_type"
+    },
+    "data_width_bits": {
+      "enum": [
+        1,
+        8,
+        16,
+        32,
+        64
+      ]
+    },
+    "original_value": {
+      "type": [
+        "integer",
+        "number",
+        "null"
+      ]
+    },
+    "on_value": {
+      "type": [
+        "integer",
+        "number",
+        "null"
+      ]
+    },
+    "off_value": {
+      "type": [
+        "integer",
+        "number",
+        "null"
+      ]
+    },
+    "on_bytes": {
+      "$ref": "common.schema.json#/$defs/hex_bytes"
+    },
+    "off_bytes": {
+      "$ref": "common.schema.json#/$defs/hex_bytes"
+    },
+    "bit_mask": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^0x[0-9A-Fa-f]+$"
+    },
+    "bit_position": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 63
+    },
+    "logic_description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "proposed_state": {
+      "enum": [
+        "on",
+        "off",
+        null
+      ]
+    }
+  },
+  "patternProperties": {
+    "^x_": {}
+  },
+  "unevaluatedProperties": false
+}

@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aktool.local/schemas/1.0.0/common.schema.json",
+  "title": "AKTOOL common header",
+  "description": "Header shared by all four AKTOOL record types. Offsets are 0-based file offsets; end_file_offset is exclusive.",
+  "type": "object",
+  "required": [
+    "schema_version", "record_id", "revision", "category", "name",
+    "software_id", "calibration_id", "ecu_family",
+    "file_size", "md5", "sha256",
+    "file_offset", "end_file_offset", "byte_order", "original_bytes",
+    "evidence", "confidence", "review_state",
+    "created_at", "updated_at", "provenance"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "record_id": { "type": "string", "minLength": 1, "description": "Stable across revisions (UUID recommended)." },
+    "revision": { "type": "integer", "minimum": 1 },
+    "category": { "enum": ["function_on_off", "function_map_table", "bosch_dtc", "non_bosch_dtc"] },
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": ["string", "null"] },
+    "software_id": { "type": ["string", "null"], "minLength": 1 },
+    "calibration_id": { "type": ["string", "null"], "minLength": 1 },
+    "ecu_vendor": { "type": ["string", "null"] },
+    "ecu_family": { "type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9_.-]+$", "description": "Controlled profile key, e.g. bosch_edc17c46." },
+    "processor": { "type": ["string", "null"] },
+    "file_size": { "type": "integer", "minimum": 1 },
+    "md5": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "file_offset": { "$ref": "#/$defs/offset" },
+    "ecu_address": { "type": ["integer", "null"], "minimum": 0 },
+    "end_file_offset": { "$ref": "#/$defs/offset" },
+    "byte_order": { "$ref": "#/$defs/byte_order" },
+    "original_bytes": { "$ref": "#/$defs/hex_bytes" },
+    "evidence": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/evidence" } },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1, "description": "Display/ranking only; grants no permission." },
+    "review_state": { "enum": ["draft", "approved", "validated", "deprecated"] },
+    "reviewer": { "type": ["string", "null"] },
+    "created_at": { "$ref": "#/$defs/utc_time" },
+    "updated_at": { "$ref": "#/$defs/utc_time" },
+    "provenance": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/provenance" } },
+    "validation_steps": { "type": "array", "items": { "type": "string" } }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "review_state": { "enum": ["approved", "validated"] } } },
+      "then": { "required": ["reviewer"], "properties": { "reviewer": { "type": "string", "minLength": 1 } } }
+    }
+  ],
+  "$defs": {
+    "offset": { "type": "integer", "minimum": 0 },
+    "byte_order": { "enum": ["little", "big", "not_applicable"] },
+    "hex_bytes": {
+      "type": "string",
+      "pattern": "^[0-9A-Fa-f]{2}( [0-9A-Fa-f]{2})*$",
+      "description": "Space-separated bytes, e.g. 'AA BB 00 1F'. Exported uppercase."
+    },
+    "utc_time": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$" },
+    "data_type": { "enum": ["uint8", "int8", "uint16", "int16", "uint32", "int32", "float32", "float64", "bit"] },
+    "evidence": {
+      "type": "object",
+      "required": ["source_type", "claim"],
+      "properties": {
+        "source_type": { "enum": ["a2l", "xdf", "kp", "ols", "damos", "manual", "ghidra", "ida", "binary_check", "ai_proposal", "csv", "aktool_json"] },
+        "source_ref": { "type": ["string", "null"], "description": "Source artifact id, file hash, or line/node reference." },
+        "claim": { "type": "string", "minLength": 1 },
+        "file_offset": { "type": ["integer", "null"], "minimum": 0 },
+        "verified_against_bin": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["source_type", "source_name"],
+      "properties": {
+        "source_type": { "type": "string" },
+        "source_name": { "type": "string", "minLength": 1 },
+        "sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "license": { "type": ["string", "null"] },
+        "imported_at": { "$ref": "#/$defs/utc_time" }
+      },
+      "additionalProperties": false
+    },
+    "formula": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["identity", "linear", "polynomial", "rational", "table"] },
+        "factor": { "type": "number" },
+        "offset": { "type": "number" },
+        "coefficients": { "type": "array", "items": { "type": "number" } },
+        "rounding": { "enum": ["none", "round", "floor", "ceil"] }
+      },
+      "allOf": [
+        { "if": { "properties": { "type": { "const": "linear" } } }, "then": { "required": ["factor", "offset"] } },
+        { "if": { "properties": { "type": { "enum": ["polynomial", "rational"] } } }, "then": { "required": ["coefficients"] } }
+      ],
+      "additionalProperties": false
+    }
+  }
+}
