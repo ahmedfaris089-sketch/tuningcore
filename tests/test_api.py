@@ -91,3 +91,10 @@ def test_server_mode_requires_api_key(tmp_path, synthetic_bin):
 def test_migrations_are_idempotent(settings):
     create_app(settings)
     create_app(settings)
+
+
+def test_data_dir_with_percent_encoded_url(tmp_path):
+    # Windows paths become "sqlite:///C%3A/..." in the engine URL; "%" must not break Alembic.
+    settings = Settings(mode="local", data_dir=tmp_path / "100% data")
+    with TestClient(create_app(settings)) as c:
+        assert c.get("/api/v1/health").status_code == 200

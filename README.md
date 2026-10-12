@@ -21,7 +21,7 @@ cd aktool
 py -3.12 -m venv .venv
 .venv\Scripts\activate
 pip install -e ".[dev]"
-python -m pytest          # 45 اختباراً
+python -m pytest          # 64 اختباراً
 python -m core            # http://127.0.0.1:8765/docs
 ```
 
@@ -48,6 +48,8 @@ $env:AKTOOL_MODE="server"; $env:AKTOOL_API_KEY="ضع-مفتاحاً-طويلاً
 | POST | `/api/v1/definitions/{record_id}/validate` | إعادة فحص نسخة مقابل Schema وBIN |
 | POST | `/api/v1/exports/preview` و`/api/v1/exports` | معاينة ثم تصدير ملف JSON إلى `data/exports/` |
 | POST | `/api/v1/json/import` | معاينة (`apply=false`) أو استيراد (`apply=true`) |
+| POST | `/api/v1/sources/import/ols-json` | استيراد OLS map-pack JSON (تصدير WinOLS) لملف BIN موجود: معاينة أو حفظ كسجلات draft |
+| POST | `/api/v1/exports/ols-json` | تصدير سجلات `function_map_table` كـ OLS map-pack JSON يفتحه WinOLS وromHEX14 |
 
 الأخطاء دائماً بالشكل `{"error": {"code", "message", "field", "details"}}` برموز ثابتة.
 
@@ -57,6 +59,13 @@ $env:AKTOOL_MODE="server"; $env:AKTOOL_API_KEY="ضع-مفتاحاً-طويلاً
 python -m fixtures.synthetic.build_fixtures
 ```
 ملفات ECU الحقيقية للمجموعة الذهبية توضع في `fixtures/golden/` ولا تُرفع إلى مستودع عام.
+
+## استيراد OLS map-pack JSON
+- يقرأ العناوين `$2000`، والأرقام بالفاصلة أو النقطة (`0,046882` / `0.046882`)، وأنواع `eEinzel` و`eEindim` و`eZweidim` و`eZweiInv`، و`DataOrg` من `eByte` حتى `eDoubleHiLo`، والمحاور المخزنة في الملف (`eRom`) أو الثابتة (`eUserdef`).
+- كل خريطة تصبح سجلاً **draft** بايتاته مقروءة من ملف BIN نفسه، أو تُذكر في `skipped_items` مع السبب (`MISSING_ADDRESS`، `OFFSET_OUT_OF_RANGE`، `UNSUPPORTED_SKIP_BYTES`...). لا شيء يُحذف بصمت.
+- أسماء الحقول البديلة (مثل `Spalten` و`Adresse`) مدعومة، ويمكن تمرير قاموس إضافي في `aliases`.
+- الخرائط ذات `bReciprocal=1` تُستورد مع تحذير، لأن المعادلة تحتاج تأكيداً مقابل WinOLS.
+- الخصائص الأصلية تُحفظ في `x_ols_source`، فالتصدير يعيدها كما هي.
 
 ## قواعد مهمة
 - السجل `approved` أو `validated` لا يُحفظ إلا إذا كان ملف BIN الخاص به في الـ Vault وطابقت بايتاته.
