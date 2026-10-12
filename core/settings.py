@@ -16,6 +16,9 @@ class Settings:
     max_bin_bytes: int = 64 * 1024 * 1024
     max_range_bytes: int = 64 * 1024
     api_key: str | None = None
+    # romHEX14 cloud API: "require" refuses to return a modified BIN unless a checksum corrector is
+    # registered for its family; "client" returns it uncorrected and leaves correction to romHEX14.
+    rx14_checksum: str = "require"
     schema_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parent.parent / "schemas")
 
     @property
@@ -34,6 +37,9 @@ class Settings:
         api_key = os.environ.get("AKTOOL_API_KEY") or None
         if mode == "server" and not api_key:
             raise ValueError("AKTOOL_API_KEY is required when AKTOOL_MODE=server")
+        rx14_checksum = os.environ.get("AKTOOL_RX14_CHECKSUM", "require")
+        if rx14_checksum not in ("require", "client"):
+            raise ValueError(f"AKTOOL_RX14_CHECKSUM must be 'require' or 'client', got {rx14_checksum!r}")
         return cls(
             mode=mode,
             data_dir=Path(os.environ.get("AKTOOL_DATA_DIR", "data")),
@@ -41,4 +47,5 @@ class Settings:
             port=int(os.environ.get("AKTOOL_PORT", "8765")),
             max_bin_bytes=int(os.environ.get("AKTOOL_MAX_BIN_MB", "64")) * 1024 * 1024,
             api_key=api_key,
+            rx14_checksum=rx14_checksum,
         )
