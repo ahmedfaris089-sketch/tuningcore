@@ -175,3 +175,31 @@ class ReviewDecision(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     __table_args__ = (CheckConstraint(f"decision IN {REVIEW_DECISIONS}", name="ck_review_decision"),)
+
+
+class FirmwareFingerprint(Base):
+    """Per-BIN block hashes and identifier strings used to find related files (FR-04).
+
+    `blocks` lists one short hash per fixed-size block, in file order, comma separated; a block made of a single
+    repeated byte (erased flash, padding) has an empty entry because it would match every file.
+    """
+
+    __tablename__ = "firmware_fingerprint"
+
+    blob_id: Mapped[int] = mapped_column(ForeignKey("firmware_blob.id"), primary_key=True)
+    block_size: Mapped[int] = mapped_column(Integer)
+    blocks: Mapped[str] = mapped_column(Text)
+    identifiers: Mapped[str] = mapped_column(Text)  # JSON list
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class FingerprintBlock(Base):
+    """Reverse index from a block hash to the BINs that contain it, so candidates are found without scanning
+    every stored file."""
+
+    __tablename__ = "fingerprint_block"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    blob_id: Mapped[int] = mapped_column(ForeignKey("firmware_blob.id"), index=True)
+    block_no: Mapped[int] = mapped_column(Integer)
+    hash: Mapped[str] = mapped_column(String(16), index=True)

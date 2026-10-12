@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from core import __version__, firmware, review, sources
+from core import __version__, firmware, recognition, review, sources
 from core.db import RELATION_TYPES, FirmwareRecord
 from core.db.migrate import upgrade_to_head
 from core.db.session import make_engine, make_session_factory
@@ -76,6 +76,12 @@ class EditIn(ReviewIn):
 class ImportIn(BaseModel):
     record: dict[str, Any]
     apply: bool = False
+
+
+class TransferIn(BaseModel):
+    source_firmware_id: int
+    apply: bool = False
+    record_ids: list[str] | None = Field(None, description="limit the transfer to these approved source records")
 
 
 class OlsExportIn(BaseModel):
@@ -174,6 +180,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         data = vault.read_range(rec.blob.sha256, offset, length, settings.max_range_bytes)
         return {"firmware_id": rec.id, "offset": offset, "offset_hex": f"0x{offset:X}", "length": len(data),
                 "bytes": to_hex(data)}
+
+    @app.get("/api/v1/firmware/{firmware_id}/identify")
+    def identify_firmware(firmware_id: int, limit: int = Query(10, ge=1, le=100), session: Session = Depends(db),
+                          _: str = Depends(actor)) -> dict[str, Any]:
+        return recognition.identify(session, vault, firmware_id, limit)
+
+    @app.post("/api/v1/firmware/{firmware_id}/transfer")
+    def transfer_records(firmware_id: int, body: TransferIn, session: Session = Depends(db),
+                         who: str = Depends(actor)) -> dict[str, Any]:
+        return recognition.transfer(session, factory, vault, firmware_id, body.source_firmware_id, body.apply, who,
+                                    body.record_ids)
 
     @app.post("/api/v1/json/validate")
     def validate_json(body: ValidateIn, session: Session = Depends(db), _: str = Depends(actor)) -> dict[str, Any]:
