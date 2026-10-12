@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from core import __version__, firmware, sources
+from core import __version__, firmware, review, sources
 from core.db import RELATION_TYPES, FirmwareRecord
 from core.db.migrate import upgrade_to_head
 from core.db.session import make_engine, make_session_factory
@@ -61,6 +61,16 @@ class RecordIn(BaseModel):
 class ExportIn(BaseModel):
     record_id: str
     revision: int | None = None
+
+
+class ReviewIn(BaseModel):
+    revision: int = Field(..., ge=1, description="the revision you reviewed; a newer one makes this a stale review")
+    note: str | None = None
+
+
+class EditIn(ReviewIn):
+    changes: dict[str, Any]
+    approve: bool = True
 
 
 class ImportIn(BaseModel):
@@ -218,6 +228,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not body.apply:
             return factory.import_preview(session, body.record)
         return factory.import_record(session, body.record, who)
+
+    @app.get("/api/v1/review/queue")
+    def review_queue(category: str | None = None, sha256: str | None = None, q: str | None = None,
+                     limit: int = Query(50, ge=1, le=500), session: Session = Depends(db),
+                     _: str = Depends(actor)) -> list[dict[str, Any]]:
+        return review.queue(session, category, sha256, q, limit)
+
+    @app.post("/api/v1/review/{record_id}/accept")
+    def review_accept(record_id: str, body: ReviewIn, session: Session = Depends(db),
+                      who: str = Depends(actor)) -> dict[str, Any]:
+        return review.decide(session, factory, record_id, "accept", who, body.revision, body.note)
+
+    @app.post("/api/v1/review/{record_id}/edit")
+    def review_edit(record_id: str, body: EditIn, session: Session = Depends(db),
+                    who: str = Depends(actor)) -> dict[str, Any]:
+        return review.decide(session, factory, record_id, "edit", who, body.revision, body.note, body.changes,
+                             body.approve)
+
+    @app.post("/api/v1/review/{record_id}/reject")
+    def review_reject(record_id: str, body: ReviewIn, session: Session = Depends(db),
+                      who: str = Depends(actor)) -> dict[str, Any]:
+        return review.decide(session, factory, record_id, "reject", who, body.revision, body.note)
+
+    @app.get("/api/v1/review/{record_id}/history")
+    def review_history(record_id: str, session: Session = Depends(db), _: str = Depends(actor)) -> list[dict[str, Any]]:
+        return review.history(session, factory, record_id)
 
     @app.post("/api/v1/sources/import/ols-json")
     async def import_ols(file: UploadFile = File(...), firmware_id: int = Form(...), apply: bool = Form(False),

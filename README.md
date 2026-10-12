@@ -21,7 +21,7 @@ cd aktool
 py -3.12 -m venv .venv
 .venv\Scripts\activate
 pip install -e ".[dev]"
-python -m pytest          # 72 اختباراً (واحد منها يعمل فقط مع ملف KP حقيقي)
+python -m pytest          # 79 اختباراً (واحد منها يعمل فقط مع ملف KP حقيقي)
 python -m core            # http://127.0.0.1:8765/docs
 ```
 
@@ -48,6 +48,9 @@ $env:AKTOOL_MODE="server"; $env:AKTOOL_API_KEY="ضع-مفتاحاً-طويلاً
 | POST | `/api/v1/definitions/{record_id}/validate` | إعادة فحص نسخة مقابل Schema وBIN |
 | POST | `/api/v1/exports/preview` و`/api/v1/exports` | معاينة ثم تصدير ملف JSON إلى `data/exports/` |
 | POST | `/api/v1/json/import` | معاينة (`apply=false`) أو استيراد (`apply=true`) |
+| GET | `/api/v1/review/queue` | السجلات التي تنتظر المراجعة (draft)، مع فلترة بالنوع أو الملف أو نص |
+| POST | `/api/v1/review/{record_id}/accept` و`/edit` و`/reject` | قبول، أو تعديل ثم قبول (أو إبقاء draft)، أو رفض مع سبب |
+| GET | `/api/v1/review/{record_id}/history` | قرارات المراجعة على السجل |
 | POST | `/api/v1/sources/import/ols-json` | استيراد OLS map-pack JSON (تصدير WinOLS) لملف BIN موجود: معاينة أو حفظ كسجلات draft |
 | POST | `/api/v1/sources/import/kp` | استيراد ملف WinOLS `.kp` الأصلي لملف BIN موجود (و`base_address` اختياري): معاينة أو حفظ كسجلات draft |
 | POST | `/api/v1/exports/ols-json` | تصدير سجلات `function_map_table` كـ OLS map-pack JSON يفتحه WinOLS وromHEX14 |
@@ -75,10 +78,18 @@ python -m fixtures.synthetic.build_fixtures
 - غير مقروء بعد من الملف، ويُفترض مع ذكره في `assumptions`: ترتيب البايتات (little endian)، والـ offset (صفر)، وإشارة المحاور (unsigned). لذلك ملفات ECU ذات ترتيب big endian تحتاج مراجعة.
 - لتشغيل اختبار الملف الحقيقي: `AKTOOL_REAL_KP=<ملف.kp> AKTOOL_REAL_KP_CSV=<تصدير.csv> python -m pytest tests/test_kp_binary.py`.
 
+## المراجعة
+- كل ما يأتي من المستوردات (OLS وKP) والذكاء الاصطناعي لاحقاً يدخل كـ **draft** ويظهر في `/api/v1/review/queue`.
+- كل قرار ينشئ نسخة جديدة من السجل ولا يمسح شيئاً: القبول يعيد فحص البايتات مقابل ملف BIN قبل الحفظ، والتعديل يحفظ أسماء الحقول التي تغيرت، والرفض يحتاج سبباً ويجعل السجل `deprecated`.
+- يجب إرسال رقم النسخة التي راجعتها (`revision`). إن تغيّر السجل بعدها يُرفض القرار (409 `STALE_REVIEW`).
+- حقول الهوية (`record_id` و`sha256` و`revision` والحالة...) لا تُعدّل من المراجعة.
+- القرارات محفوظة مع الاقتراح الأصلي، لتُستخدم لاحقاً في قياس الذكاء الاصطناعي وتحسينه.
+- إعادة استيراد نفس المصدر بعد المراجعة تُعرف كـ `unchanged`، فلا يعود السجل المرفوض أو المعدّل.
+
 ## قواعد مهمة
 - السجل `approved` أو `validated` لا يُحفظ إلا إذا كان ملف BIN الخاص به في الـ Vault وطابقت بايتاته.
 - `draft` مسموح بدون BIN، لكنه لا يُصدَّر.
 - التصدير لا يكتب فوق ملف مختلف بنفس الاسم.
 
 ## التالي
-المرحلة 3: قائمة المراجعة (Accept / Edit / Reject) والبحث النصي FTS5، ثم نقل `kp_parser` من ECU Expert JSON Builder كأول importer.
+التعرّف على الملفات القريبة (variant) حتى تنتقل المعرفة المعتمدة إلى ملفات غير مطابقة تماماً، ثم الذكاء الاصطناعي عبر Ollama، ثم بوت Telegram. الـ checksum مؤجل.

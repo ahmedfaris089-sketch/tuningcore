@@ -89,11 +89,13 @@ _VOLATILE = ("created_at", "updated_at", "provenance")
 
 
 def _already_imported(session: Session, factory: JsonFactory, record: dict[str, Any]) -> bool:
-    """True when this record_id exists and its latest revision says the same thing, ignoring import time."""
+    """True when this record_id exists and one of its revisions came from the same proposal, ignoring import
+    time. Checking every revision keeps a proposal that was later accepted, edited or rejected from coming
+    back as a conflict on the next import of the same source."""
     try:
-        latest = factory.get_revision(session, record["record_id"])
+        definition = factory.get(session, record["record_id"])
     except AktoolError:
         return False
-    stored = json.loads(latest.payload)
     strip = lambda r: {k: v for k, v in r.items() if k not in _VOLATILE + ("revision", "review_state", "reviewer")}
-    return strip(stored) == strip(json.loads(json.dumps(record)))
+    wanted = strip(json.loads(json.dumps(record)))
+    return any(strip(json.loads(rev.payload)) == wanted for rev in definition.revisions)
