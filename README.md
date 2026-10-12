@@ -21,7 +21,7 @@ cd aktool
 py -3.12 -m venv .venv
 .venv\Scripts\activate
 pip install -e ".[dev]"
-python -m pytest          # 64 اختباراً
+python -m pytest          # 72 اختباراً (واحد منها يعمل فقط مع ملف KP حقيقي)
 python -m core            # http://127.0.0.1:8765/docs
 ```
 
@@ -49,6 +49,7 @@ $env:AKTOOL_MODE="server"; $env:AKTOOL_API_KEY="ضع-مفتاحاً-طويلاً
 | POST | `/api/v1/exports/preview` و`/api/v1/exports` | معاينة ثم تصدير ملف JSON إلى `data/exports/` |
 | POST | `/api/v1/json/import` | معاينة (`apply=false`) أو استيراد (`apply=true`) |
 | POST | `/api/v1/sources/import/ols-json` | استيراد OLS map-pack JSON (تصدير WinOLS) لملف BIN موجود: معاينة أو حفظ كسجلات draft |
+| POST | `/api/v1/sources/import/kp` | استيراد ملف WinOLS `.kp` الأصلي لملف BIN موجود (و`base_address` اختياري): معاينة أو حفظ كسجلات draft |
 | POST | `/api/v1/exports/ols-json` | تصدير سجلات `function_map_table` كـ OLS map-pack JSON يفتحه WinOLS وromHEX14 |
 
 الأخطاء دائماً بالشكل `{"error": {"code", "message", "field", "details"}}` برموز ثابتة.
@@ -66,6 +67,13 @@ python -m fixtures.synthetic.build_fixtures
 - أسماء الحقول البديلة (مثل `Spalten` و`Adresse`) مدعومة، ويمكن تمرير قاموس إضافي في `aliases`.
 - الخرائط ذات `bReciprocal=1` تُستورد مع تحذير، لأن المعادلة تحتاج تأكيداً مقابل WinOLS.
 - الخصائص الأصلية تُحفظ في `x_ols_source`، فالتصدير يعيدها كما هي.
+
+## استيراد ملفات KP الأصلية (WinOLS)
+- يقرأ ملف `.kp` نفسه بدون WinOLS، ولا يعدّل الملف. المحلل مأخوذ من MxT (رخصة Apache 2.0، انظر `THIRD_PARTY_NOTICES.md`) مع تحسينات.
+- مُختبر على ملف KP حقيقي (ME7، 8D0907551M) مقابل تصدير CSV من WinOLS وملف XDF: 94 خريطة كلها صحيحة في العنوان والأبعاد وحجم البيانات والمعامل، وحجم المحاور وعناوينها (119 محوراً) والإشارة (signed). خريطتان رُفضتا مع السبب بدل استيراد قيم خاطئة.
+- كل خريطة تصبح سجلاً **draft** عبر نفس مسار OLS JSON، بايتاته من ملف BIN، والمصدر `kp` في الأدلة.
+- غير مقروء بعد من الملف، ويُفترض مع ذكره في `assumptions`: ترتيب البايتات (little endian)، والـ offset (صفر)، وإشارة المحاور (unsigned). لذلك ملفات ECU ذات ترتيب big endian تحتاج مراجعة.
+- لتشغيل اختبار الملف الحقيقي: `AKTOOL_REAL_KP=<ملف.kp> AKTOOL_REAL_KP_CSV=<تصدير.csv> python -m pytest tests/test_kp_binary.py`.
 
 ## قواعد مهمة
 - السجل `approved` أو `validated` لا يُحفظ إلا إذا كان ملف BIN الخاص به في الـ Vault وطابقت بايتاته.
