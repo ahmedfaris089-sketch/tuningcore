@@ -21,7 +21,7 @@ cd aktool
 py -3.12 -m venv .venv
 .venv\Scripts\activate
 pip install -e ".[dev]"
-python -m pytest          # 45 اختباراً
+python -m pytest          # 59 اختباراً
 python -m core            # http://127.0.0.1:8765/docs
 ```
 
@@ -51,6 +51,21 @@ $env:AKTOOL_MODE="server"; $env:AKTOOL_API_KEY="ضع-مفتاحاً-طويلاً
 
 الأخطاء دائماً بالشكل `{"error": {"code", "message", "field", "details"}}` برموز ثابتة.
 
+## ربط romHEX14 بالنواة
+النواة تقدم نفس API السيرفر الذي يتصل به romHEX14 (`/v1/health` و`/v1/dtc/analyze` و`/v1/dtc/disable` و`/v1/features/detect` و`/v1/features/apply`)، فيعمل romHEX14 كما هو بدون تعديل:
+
+1. شغّل النواة: `python -m core`.
+2. في romHEX14 افتح Cloud Tools ثم Configure، وضع العنوان `http://127.0.0.1:8765`.
+3. ضع أي قيمة في خانة Pro token (مثل `local`)، لأن romHEX14 لا يطلب الوظائف (features) بدونها.
+
+القواعد:
+- الإجابة فقط من السجلات `approved` أو `validated` المصنوعة لنفس الملف بالضبط (نفس SHA-256)، بعد إعادة فحص بايتاتها مقابل الملف المرسل. ملف غير معروف يعطي قائمة فارغة، لا تخميناً.
+- آخر نسخة من السجل هي المعتمدة: إضافة نسخة `draft` أحدث تسحب السجل حتى تُعتمد.
+- `disable` يكتب `proposed_bytes` من سجل DTC، و`apply` يكتب `on_bytes` أو `off_bytes` حسب `proposed_state` في سجل function_on_off. أي كود أو وظيفة بلا سجل معتمد يرفض الطلب كله (422).
+- **الـ checksum**: افتراضياً (`AKTOOL_RX14_CHECKSUM=require`) لا يُعاد ملف معدّل إلا إذا وُجد مصحح checksum لعائلة الـ ECU في `core/checksum.py`، ولا يوجد أي مصحح حتى الآن. مع `AKTOOL_RX14_CHECKSUM=client` يُعاد الملف بدون تصحيح، ويجب تشغيل Correct Checksum في romHEX14 قبل الحفظ.
+- كل ملف يُرسل يُحفظ في الـ Vault، والملف المعدّل يُحفظ كـ `modified` ومرتبط بالأصل (`modified_from`)، مع audit.
+- في وضع السيرفر يوضع المفتاح في العنوان: `https://host/rx14/<API_KEY>`، لأن romHEX14 يرسل طلبات DTC بدون توكن.
+
 ## الملفات التجريبية
 `fixtures/synthetic/synthetic_ecu.bin` ملف **اصطناعي** (ليس من ECU حقيقي)، يُعاد بناؤه مع الأمثلة بالأمر:
 ```
@@ -64,4 +79,6 @@ python -m fixtures.synthetic.build_fixtures
 - التصدير لا يكتب فوق ملف مختلف بنفس الاسم.
 
 ## التالي
+مراجعة: محرك التعرّف على الملفات المتشابهة (variant) حتى يجيب الـ API عن ملفات قريبة وليس المطابقة فقط، ومصححات checksum عبر plugins الخاصة بـ romHEX14.
+
 المرحلة 3: قائمة المراجعة (Accept / Edit / Reject) والبحث النصي FTS5، ثم نقل `kp_parser` من ECU Expert JSON Builder كأول importer.

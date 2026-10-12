@@ -13,6 +13,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from core import __version__, firmware
+from core.api.romhex14 import build_router, compat_error_handler
+from core.checksum import ChecksumRegistry
+from core.compat.romhex14 import CompatError, Rx14Engine
 from core.db import RELATION_TYPES, FirmwareRecord
 from core.db.migrate import upgrade_to_head
 from core.db.session import make_engine, make_session_factory
@@ -67,7 +70,7 @@ class ImportIn(BaseModel):
     apply: bool = False
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, checksums: ChecksumRegistry | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     engine = make_engine(settings.db_url)
@@ -97,6 +100,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not x_api_key or not hmac.compare_digest(x_api_key, settings.api_key or ""):
             raise AktoolError("UNAUTHORIZED", "missing or invalid X-API-Key", status_code=401)
         return "api-key-user"
+
+    app.add_exception_handler(CompatError, compat_error_handler)
+
+    rx14 = build_router(settings, db, Rx14Engine(settings, vault, checksums or ChecksumRegistry()))
+    app.include_router(rx14, prefix="/v1", tags=["romhex14"])
+    app.include_router(rx14, prefix="/rx14/{key}/v1", tags=["romhex14"])
 
     @app.get("/api/v1/health")
     def health(session: Session = Depends(db)) -> dict[str, Any]:
