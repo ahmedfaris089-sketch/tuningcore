@@ -94,11 +94,12 @@ def test_api_import_kp_creates_drafts_from_bin_bytes(client, synthetic_bin):
     files = {"file": ("maps.kp", kp_file())}
     preview = client.post("/api/v1/sources/import/kp", files=files, data={"firmware_id": fw["id"]}).json()
     assert preview["format"] == "winols_kp" and preview["would_create"] == 1 and preview["applied"] is False
-    assert preview["decoded_maps"] == 1 and preview["rejected"] == [] and preview["assumptions"]
+    assert preview["decoded_maps"] == 1 and preview["kp_rejected"] == [] and preview["assumptions"]
+    assert preview["rejected"] == 0  # the store count is not overwritten by the KP's own list
 
     done = client.post("/api/v1/sources/import/kp", files=files,
                        data={"firmware_id": fw["id"], "apply": "true"}).json()
-    assert done["created"] == 1
+    assert done["created"] == 1 and done["rejected"] == 0
     record_id = done["items"][0]["record_id"]
     rec = client.get(f"/api/v1/definitions/{record_id}").json()["revisions"][-1]["payload"]
     assert rec["review_state"] == "draft" and rec["data_type"] == "int16" and (rec["rows"], rec["columns"]) == (2, 3)

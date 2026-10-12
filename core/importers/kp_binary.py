@@ -100,7 +100,7 @@ class KpParseResult:
     def info(self) -> dict[str, Any]:
         return {"parser_profile": PARSER_PROFILE, "kp_sha256": self.sha256, "kp_size": self.file_size,
                 "format_version": self.format_version, "decoded_maps": len(self.maps),
-                "rejected": [r.to_dict() for r in self.rejected], "kp_warnings": self.warnings,
+                "kp_rejected": [r.to_dict() for r in self.rejected], "kp_warnings": self.warnings,
                 "assumptions": list(ASSUMPTIONS)}
 
 
