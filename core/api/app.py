@@ -232,6 +232,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return sources.import_ols_json(session, factory, vault, firmware_id, doc, file.filename or "ols.json",
                                        apply, who, alias_map)
 
+    @app.post("/api/v1/sources/import/kp")
+    async def import_kp(file: UploadFile = File(...), firmware_id: int = Form(...), apply: bool = Form(False),
+                        base_address: str | None = Form(None), session: Session = Depends(db),
+                        who: str = Depends(actor)) -> dict[str, Any]:
+        data = await file.read(settings.max_bin_bytes + 1)
+        try:
+            base = int(base_address, 0) if base_address else None
+        except ValueError:
+            raise AktoolError("INVALID_BASE_ADDRESS", "base_address must be a number such as 0x80000000",
+                              field="base_address", status_code=422) from None
+        return sources.import_kp(session, factory, vault, firmware_id, data, file.filename or "maps.kp", apply, who,
+                                 base)
+
     @app.post("/api/v1/exports/ols-json")
     def export_ols(body: OlsExportIn, session: Session = Depends(db), _: str = Depends(actor)) -> dict[str, Any]:
         records = [json.loads(factory.get_revision(session, rid).payload) for rid in body.record_ids]

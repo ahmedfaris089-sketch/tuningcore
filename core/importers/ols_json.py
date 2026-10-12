@@ -85,9 +85,10 @@ class ImportReport:
     skipped: list[Skip] = field(default_factory=list)
     warnings: list[dict[str, Any]] = field(default_factory=list)
     total_maps: int = 0
+    format: str = FORMAT_NAME
 
     def summary(self) -> dict[str, Any]:
-        return {"format": FORMAT_NAME, "total_maps": self.total_maps, "proposed": len(self.records),
+        return {"format": self.format, "total_maps": self.total_maps, "proposed": len(self.records),
                 "skipped": len(self.skipped), "skipped_items": [s.to_dict() for s in self.skipped],
                 "warnings": self.warnings}
 
@@ -140,8 +141,24 @@ def apply_aliases(m: dict[str, Any], aliases: dict[str, str]) -> dict[str, Any]:
     return out
 
 
+@dataclass(frozen=True)
+class SourceInfo:
+    """Where the maps came from. Other importers (KP) convert to this document shape and say so here."""
+
+    format: str = FORMAT_NAME
+    evidence_type: str = "ols"
+    label: str = "OLS map-pack"
+    id_prefix: str = "ols"
+    sha256: str | None = None  # hash of the original source file; defaults to a hash of the document
+    refs: list[str] | None = None  # per-map source reference; defaults to "<source_name>#maps[i]"
+
+
+OLS_SOURCE = SourceInfo()
+
+
 def import_document(doc: Any, bin_data: bytes, firmware: dict[str, Any],
-                    aliases: dict[str, str] | None = None, source_name: str = "ols.json") -> ImportReport:
+                    aliases: dict[str, str] | None = None, source_name: str = "ols.json",
+                    source: SourceInfo = OLS_SOURCE) -> ImportReport:
     """Turn every map of an OLS JSON document into a draft function_map_table record.
 
     `firmware` carries sha256, md5, file_size, software_id, calibration_id, ecu_vendor, ecu_family.
@@ -149,8 +166,8 @@ def import_document(doc: Any, bin_data: bytes, firmware: dict[str, Any],
     if not isinstance(doc, dict) or not isinstance(doc.get("maps"), list):
         raise OlsFormatError("not an OLS map-pack JSON document: expected a top-level 'maps' array")
     alias_map = {**DEFAULT_ALIASES, **(aliases or {})}
-    report = ImportReport(total_maps=len(doc["maps"]))
-    source_sha = hashlib.sha256(json.dumps(doc, sort_keys=True).encode()).hexdigest()
+    report = ImportReport(total_maps=len(doc["maps"]), format=source.format)
+    source_sha = source.sha256 or hashlib.sha256(json.dumps(doc, sort_keys=True).encode()).hexdigest()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     seen: dict[tuple[int, int], str] = {}
     for index, raw_map in enumerate(doc["maps"]):
@@ -160,7 +177,8 @@ def import_document(doc: Any, bin_data: bytes, firmware: dict[str, Any],
             continue
         m = apply_aliases(raw_map, alias_map)
         try:
-            record, warns = _map_to_record(index, m, raw_map, bin_data, firmware, source_name, source_sha, now)
+            record, warns = _map_to_record(index, m, raw_map, bin_data, firmware, source_name, source_sha, now,
+                                           source)
         except _SkipMap as skip:
             report.skipped.append(Skip(index, name, skip.code, str(skip)))
             continue
@@ -181,7 +199,8 @@ class _SkipMap(Exception):
 
 
 def _map_to_record(index: int, m: dict[str, Any], raw_map: dict[str, Any], data: bytes, fw: dict[str, Any],
-                   source_name: str, source_sha: str, now: str) -> tuple[dict[str, Any], list[str]]:
+                   source_name: str, source_sha: str, now: str,
+                   source: SourceInfo = OLS_SOURCE) -> tuple[dict[str, Any], list[str]]:
     warns: list[str] = []
     ols_type = m.get("Type")
     if ols_type not in SHAPES:
@@ -234,7 +253,8 @@ def _map_to_record(index: int, m: dict[str, Any], raw_map: dict[str, Any], data:
     id_name = str(m.get("IdName") or "")
     map_key = re.sub(r"[^A-Za-z0-9_.]", "_", id_name) or f"map_{start:X}"
     display_name = str(m.get("Name") or id_name or f"Map at 0x{start:X}")
-    record_id = f"ols-{fw['sha256'][:12]}-{start:X}-{map_key}"[:128]
+    record_id = f"{source.id_prefix}-{fw['sha256'][:12]}-{start:X}-{map_key}"[:128]
+    source_ref = source.refs[index] if source.refs else f"{source_name}#maps[{index}]"
 
     record: dict[str, Any] = {
         "schema_version": "1.0.0",
@@ -257,8 +277,8 @@ def _map_to_record(index: int, m: dict[str, Any], raw_map: dict[str, Any], data:
         "byte_order": byte_order,
         "original_bytes": to_hex(raw_bytes),
         "evidence": [
-            {"source_type": "ols", "source_ref": f"{source_name}#maps[{index}]",
-             "claim": f"OLS map-pack defines '{display_name}' at ${start:X} as {ols_type}/{org}",
+            {"source_type": source.evidence_type, "source_ref": source_ref,
+             "claim": f"{source.label} defines '{display_name}' at ${start:X} as {ols_type}/{org}",
              "file_offset": start, "verified_against_bin": False},
             {"source_type": "binary_check", "source_ref": fw["sha256"],
              "claim": f"{end - start} bytes read from the BIN at 0x{start:X}; range is inside the file",
@@ -269,7 +289,7 @@ def _map_to_record(index: int, m: dict[str, Any], raw_map: dict[str, Any], data:
         "reviewer": None,
         "created_at": now,
         "updated_at": now,
-        "provenance": [{"source_type": FORMAT_NAME, "source_name": source_name, "sha256": source_sha,
+        "provenance": [{"source_type": source.format, "source_name": source_name, "sha256": source_sha,
                         "license": None, "imported_at": now}],
         "validation_steps": ["range inside BIN", "bytes read from BIN", "needs human review"],
         "map_key": map_key,
