@@ -150,3 +150,28 @@ class ExportArtifact(Base):
     sha256: Mapped[str] = mapped_column(String(64))
     created_by: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+REVIEW_DECISIONS = ("accept", "edit", "reject")
+
+
+class ReviewDecision(Base):
+    """A human decision on a definition: which revision was reviewed, which revision it produced, and why.
+
+    Kept next to the proposal it judged so accepted, corrected and rejected proposals can later be used to
+    measure and improve the AI.
+    """
+
+    __tablename__ = "review_decision"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    definition_id: Mapped[int] = mapped_column(ForeignKey("definition.id"), index=True)
+    from_revision_id: Mapped[int] = mapped_column(ForeignKey("definition_revision.id"))
+    to_revision_id: Mapped[int] = mapped_column(ForeignKey("definition_revision.id"))
+    decision: Mapped[str] = mapped_column(String(16))
+    reviewer: Mapped[str] = mapped_column(String(64))
+    note: Mapped[str | None] = mapped_column(Text)
+    changed_fields: Mapped[str | None] = mapped_column(Text)  # JSON list of top-level keys an edit changed
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    __table_args__ = (CheckConstraint(f"decision IN {REVIEW_DECISIONS}", name="ck_review_decision"),)
