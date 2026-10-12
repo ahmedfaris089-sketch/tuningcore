@@ -21,7 +21,7 @@ cd aktool
 py -3.12 -m venv .venv
 .venv\Scripts\activate
 pip install -e ".[dev]"
-python -m pytest          # 63 اختباراً
+python -m pytest          # 64 اختباراً
 python -m core            # http://127.0.0.1:8765/docs
 ```
 
