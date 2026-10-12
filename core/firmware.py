@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from core import audit
+from core import audit, fingerprint
 from core.db import FirmwareBlob, FirmwareRecord, FirmwareRelation
 from core.errors import AktoolError, NotFound
 from core.vault import BinVault
@@ -28,6 +28,7 @@ def ingest(session: Session, vault: BinVault, data: bytes, file_name: str, actor
                             vault_path=str(blob_info.path))
         session.add(blob)
         session.flush()
+    fingerprint.ensure(session, blob, data)
     existing = session.scalar(select(FirmwareRecord).where(FirmwareRecord.blob_id == blob.id))
     if existing is not None:
         audit.record(session, actor, "firmware.duplicate_upload", "firmware", existing.id, file_name=file_name)

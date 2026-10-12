@@ -57,7 +57,7 @@ def _store(session: Session, factory: JsonFactory, rec: Any, report: ols_json.Im
     items = []
     counts = {"created": 0, "unchanged": 0, "rejected": 0, "would_create": 0}
     for record in report.records:
-        if _already_imported(session, factory, record):
+        if already_imported(session, factory, record):
             counts["unchanged"] += 1
             items.append({"record_id": record["record_id"], "name": record["name"], "action": "unchanged",
                           "file_offset": record["file_offset"], "errors": [], "warnings": []})
@@ -88,7 +88,7 @@ def _store(session: Session, factory: JsonFactory, rec: Any, report: ols_json.Im
 _VOLATILE = ("created_at", "updated_at", "provenance")
 
 
-def _already_imported(session: Session, factory: JsonFactory, record: dict[str, Any]) -> bool:
+def already_imported(session: Session, factory: JsonFactory, record: dict[str, Any]) -> bool:
     """True when this record_id exists and one of its revisions came from the same proposal, ignoring import
     time. Checking every revision keeps a proposal that was later accepted, edited or rejected from coming
     back as a conflict on the next import of the same source."""
