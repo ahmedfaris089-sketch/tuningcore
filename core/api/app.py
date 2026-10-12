@@ -12,12 +12,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from core import __version__, firmware
+from core import __version__, firmware, sources
 from core.db import RELATION_TYPES, FirmwareRecord
 from core.db.migrate import upgrade_to_head
 from core.db.session import make_engine, make_session_factory
 from core.errors import AktoolError
 from core.hexbytes import to_hex
+from core.importers import ols_json
 from core.jsonfactory import JsonFactory
 from core.settings import Settings
 from core.validators import ContractValidator, check_against_bin
@@ -65,6 +66,11 @@ class ExportIn(BaseModel):
 class ImportIn(BaseModel):
     record: dict[str, Any]
     apply: bool = False
+
+
+class OlsExportIn(BaseModel):
+    record_ids: list[str] = Field(..., min_length=1)
+    decimal_comma: bool = True
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -212,6 +218,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not body.apply:
             return factory.import_preview(session, body.record)
         return factory.import_record(session, body.record, who)
+
+    @app.post("/api/v1/sources/import/ols-json")
+    async def import_ols(file: UploadFile = File(...), firmware_id: int = Form(...), apply: bool = Form(False),
+                         aliases: str | None = Form(None), session: Session = Depends(db),
+                         who: str = Depends(actor)) -> dict[str, Any]:
+        raw = await file.read(settings.max_bin_bytes + 1)
+        try:
+            doc = json.loads(raw.decode("utf-8-sig"))
+            alias_map = json.loads(aliases) if aliases else None
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise AktoolError("INVALID_JSON", f"could not parse JSON: {exc}", field="file", status_code=422) from None
+        return sources.import_ols_json(session, factory, vault, firmware_id, doc, file.filename or "ols.json",
+                                       apply, who, alias_map)
+
+    @app.post("/api/v1/exports/ols-json")
+    def export_ols(body: OlsExportIn, session: Session = Depends(db), _: str = Depends(actor)) -> dict[str, Any]:
+        records = [json.loads(factory.get_revision(session, rid).payload) for rid in body.record_ids]
+        try:
+            return ols_json.export_document(records, decimal_comma=body.decimal_comma)
+        except ValueError as exc:
+            raise AktoolError("EXPORT_UNSUPPORTED", str(exc), status_code=422) from None
 
     return app
 

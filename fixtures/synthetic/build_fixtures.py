@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 BIN_PATH = ROOT / "fixtures" / "synthetic" / "synthetic_ecu.bin"
 VALID = ROOT / "schemas" / "examples" / "valid"
 INVALID = ROOT / "schemas" / "examples" / "invalid"
+OLS_PATH = ROOT / "fixtures" / "synthetic" / "synthetic_ols.json"
 
 SIZE = 0x10000
 SW_ID, CAL_ID = "SYN0001", "CAL0001"
@@ -158,6 +159,34 @@ def invalid_cases(valid: dict[str, dict]) -> dict[str, dict]:
     return cases
 
 
+def ols_document() -> dict:
+    """OLS map-pack JSON describing the synthetic BIN, including entries that must be skipped."""
+    def base(name: str, id_name: str, typ: str, org: str, addr: str, cols: int, rows: int, **extra) -> dict:
+        m = {"Name": name, "IdName": id_name, "Type": typ, "DataOrg": org, "Columns": str(cols), "Rows": str(rows),
+             "Fieldvalues.StartAddr": addr, "Fieldvalues.Factor": "1,000000", "Fieldvalues.Offset": "0,000000",
+             "Fieldvalues.Unit": "-", "bSigned": "0", "bReciprocal": "0", "SkipBytes": "0", "LineSkipBytes": "0",
+             "Comment": "", "FolderName": "Synthetic",
+             "AxisX.DataSrc": "eUserdef", "AxisX.DataAddr": "0", "AxisX.Values": "", "AxisX.Factor": "1,000000",
+             "AxisX.Offset": "0,000000", "AxisX.Unit": "-",
+             "AxisY.DataSrc": "eUserdef", "AxisY.DataAddr": "0", "AxisY.Values": "", "AxisY.Factor": "1,000000",
+             "AxisY.Offset": "0,000000", "AxisY.Unit": "-"}
+        m.update(extra)
+        return m
+
+    return {"maps": [
+        base("Synthetic torque limit", "syn_torque_limit", "eZweidim", "eHiLo", "$2000", 4, 4,
+             **{"Fieldvalues.Factor": "0,100000", "Fieldvalues.Unit": "Nm",
+                "AxisX.DataSrc": "eRom", "AxisX.DataAddr": "$1F00", "AxisX.DataOrg": "eHiLo", "AxisX.Unit": "rpm",
+                "AxisY.DataSrc": "eRom", "AxisY.DataAddr": "$1F10", "AxisY.DataOrg": "eHiLo", "AxisY.Unit": "%"}),
+        base("Synthetic fan switch", "syn_fan", "eEinzel", "eByte", "$1000", 1, 1),
+        base("Synthetic curve", "syn_curve", "eZweiInv", "eLoHi", "$2000", 1, 4,
+             **{"Fieldvalues.Factor": "0.5", "AxisY.Values": "0.0 1.0 2.0 3.0"}),
+        base("Gapped map", "syn_gapped", "eZweidim", "eHiLo", "$2000", 2, 2, SkipBytes="2"),
+        base("Past the end", "syn_far", "eZweidim", "eHiLo", "$FFFE", 2, 2),
+        base("No address", "syn_noaddr", "eEinzel", "eByte", "0", 1, 1),
+    ]}
+
+
 def main() -> None:
     data = build_bin()
     BIN_PATH.write_bytes(data)
@@ -170,6 +199,7 @@ def main() -> None:
         (VALID / f"{cat}.json").write_text(json.dumps(rec, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     for name, rec in invalid_cases(valid).items():
         (INVALID / f"{name}.json").write_text(json.dumps(rec, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    OLS_PATH.write_text(json.dumps(ols_document(), indent=2) + "\n", encoding="utf-8")
     print(f"wrote {BIN_PATH.relative_to(ROOT)} and {len(valid)} valid / {len(invalid_cases(valid))} invalid examples")
 
 
